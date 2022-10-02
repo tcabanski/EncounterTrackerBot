@@ -24,7 +24,7 @@ async def on_ready():
 @bot.command(name='start')
 async def xx(ctx):
     encounter = json.loads(pyperclip.paste())
-    await ctx.message.author.send(f'Hello from bot {encounter}', )
+    await ctx.message.author.send(f'Hello from bot {encounter}')
     await ctx.send(f'Hello from bot {encounter}')
 
 bot.run(TOKEN)
