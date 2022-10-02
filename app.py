@@ -31,7 +31,11 @@ parser_join = subparsers.add_parser("join", aliases=["j"], help="Join a PC to an
 parser_join.add_argument("name", type=str, help="Name")
 parser_join.add_argument("initiative", type=int, help="Initiative")
 
-parser_display = subparsers.add_parser("print", aliases=["p"], help="Print an encounter")
+parser_display = subparsers.add_parser("display", aliases=["d"], help="Display an encounter")
+
+parser_display = subparsers.add_parser("next", aliases=["n"], help="Next turn")
+
+parser_display = subparsers.add_parser("prev", aliases=["p"], help="Previous turn")
 
 encounter = {
     "members": [],
@@ -66,8 +70,12 @@ async def dispatchCommand(ctx, *a):
             await start(ctx, args)
         case "join" | "j":
             await join(ctx, args)
-        case "print" | "p":
-            await printCommand(ctx, args)
+        case "display" | "d":
+            await display(ctx, args)
+        case "next" | "n":
+            await nextTurn(ctx, args)
+        case "prev" | "p":
+            await prevTurn(ctx, args)
         case _:
             await ctx.send(parser.format_help())
 
@@ -94,7 +102,7 @@ async def join(ctx, args):
 
     await ctx.send(f"{args.name} added to encounter with initative {args.initiative}")
 
-async def printCommand(ctx, args):
+async def display(ctx, args):
     if encounter["running"] == False:
         await ctx.send('Combat is not running.  Please wait for the DM')
         return
@@ -113,19 +121,108 @@ async def printCommand(ctx, args):
     turn = encounter["turn"]
     
     if len(members) == 0:
-        text = text + "\nNo creatures or PCs in encounter"
+        text = text + "\nNo creatures in encounter"
     else:
-        for x in range(0, len(encounter["members"])):
-            member = members[x - 1]
-            if x == turn:
-                text = text + f"\n**{x}: {member['name']}**"
-            else:
-                text = text + f"\n{x}: {member['name']}"
+        for x in range(0, len(members)):
+            text = text + await addMemberToDisplayText(ctx, x)
 
     await encounter["channel"].send(text)
 
-    #embed = discord.Embed(description="This text should be red", color=discord.Color.red())
-    #await encounter["channel"].send(embed=embed)
+async def addMemberToDisplayText(ctx, index):
+    members = encounter["members"]
+    member = members[index]
+    turn = encounter["turn"]
+
+    text = ""
+
+    if index == turn:
+        text = text + f"\n**{index + 1}: {member['name']}**"
+    else:
+        text = text + f"\n{index + 1}: {member['name']}"
+
+    return text
+
+
+async def nextTurn(ctx, args):
+    if encounter["running"] == False:
+        await ctx.send('Combat is not running.  Please wait for the DM')
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await ctx.send('Only the DM can use this command')
+        return
+
+    turn = encounter["turn"] 
+    round = encounter["round"]
+    members = encounter["members"]
+
+    if len(members) < 1:
+        await ctx.send('No creatures in encounter.  Use join for PCs or add for monsters.')
+        return
+
+    if round < 0:
+        round = round + 1
+
+    turn = turn + 1
+    if turn > len(members):
+        turn = 0
+        round = round + 1
+
+    encounter["round"] = round
+    encounter["turn"] = turn
+
+    await displayTurn(ctx)
+
+async def prevTurn(ctx, args):
+    if encounter["running"] == False:
+        await ctx.send('Combat is not running.  Please wait for the DM')
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await ctx.send('Only the DM can use this command')
+        return
+
+    turn = encounter["turn"] 
+    round = encounter["round"]
+    members = encounter["members"]
+
+    if len(members) < 1:
+        await ctx.send('No creatures in encounter.  Use join for PCs or add for monsters.')
+        return
+
+    if turn == 0 and round == 0:
+        await ctx.send('Already on first turn of the encounter. There is no previous turn.')
+        return
+
+    turn = turn - 1
+    if turn < 0:
+        turn = 0
+        round = round - 1
+
+    encounter["round"] = round
+    encounter["turn"] = turn
+
+    await displayTurn(ctx)
+
+async def displayTurn(ctx):
+    text = "========================="
+    text = text + f"\nEncounter round: {encounter['round'] + 1}"
+    members = encounter["members"]
+    turn = encounter["turn"]
+    nextTurn = turn + 1
+    prevTurn = turn - 1 
+
+    if nextTurn == len(members):
+        nextTurn = 0
+
+    if prevTurn < 0:
+        prevTurn = len(members) - 1
+
+    text = text + await addMemberToDisplayText(ctx, prevTurn)
+    text = text + await addMemberToDisplayText(ctx, turn)
+    text = text + await addMemberToDisplayText(ctx, nextTurn)
+
+    await encounter["channel"].send(text)
 
 
 @bot.command(name ='a')
