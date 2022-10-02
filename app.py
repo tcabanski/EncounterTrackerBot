@@ -3,8 +3,9 @@ import os
 import random
 import discord
 from dotenv import load_dotenv
+import pyperclip
+import json
 
-# 1
 from discord.ext import commands
 
 load_dotenv()
@@ -13,7 +14,6 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 intents = discord.Intents.default()
 intents.message_content = True
 
-# 2
 bot = commands.Bot(intents=intents, command_prefix='!')
 
 @bot.event
@@ -22,6 +22,7 @@ async def on_ready():
 
 @bot.command(name='xx')
 async def xx(ctx):
-    await ctx.send('Hello from bot')
+    encounter = json.loads(pyperclip.paste())
+    await ctx.send(f'Hello from bot {encounter}')
 
 bot.run(TOKEN)
