@@ -31,23 +31,23 @@ parser_join = subparsers.add_parser("join", aliases=["j"], help="Join a PC to an
 parser_join.add_argument("name", type=str, help="Name")
 parser_join.add_argument("initiative", type=int, help="Initiative")
 
-
+parser_display = subparsers.add_parser("print", aliases=["p"], help="Print an encounter")
 
 encounter = {
     "members": [],
-    "round": 0,
-    "currentTurn": None,
+    "round": -1,
+    "turn": -1,
     "running": False,
     "channel": None
 }
 
-
-def initialize(channelName):
+def initialize(ctx, channelName):
     encounter["members"] = []
-    encounter["round"] = 0
-    encounter["currentTurn"] = None
+    encounter["round"] = -1
+    encounter["turn"] = -1
     encounter["running"] = True
     encounter["channel"] =  discord.utils.get(bot.get_all_channels(), name  = channelName)
+    encounter["owner"] = ctx.author
 
 @bot.event
 async def on_ready():
@@ -66,6 +66,8 @@ async def dispatchCommand(ctx, *a):
             await start(ctx, args)
         case "join" | "j":
             await join(ctx, args)
+        case "print" | "p":
+            await printCommand(ctx, args)
         case _:
             await ctx.send(parser.format_help())
 
@@ -74,7 +76,7 @@ async def start(ctx, args):
         await ctx.send('Combat alreay running.  Use "end" to stop.')
         return
 
-    initialize(args.channelName)
+    initialize(ctx, args.channelName)
     await ctx.send(f'Combat ready')
     await encounter["channel"].send(f"Please join using command:\n `@e j [name] [initative]`")
 
@@ -87,7 +89,43 @@ async def join(ctx, args):
         "name": args.name,
         "initiative": args.initiative
     })
+
+    encounter["members"].sort(reverse=True, key=lambda e: e["initiative"])
+
     await ctx.send(f"{args.name} added to encounter with initative {args.initiative}")
+
+async def printCommand(ctx, args):
+    if encounter["running"] == False:
+        await ctx.send('Combat is not running.  Please wait for the DM')
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await ctx.send('Only the DM can use this command')
+        return
+
+    text = "========================="
+    if encounter["round"] < 0:
+       text = text + f"\nEncounter round: NONE" 
+    else:
+        text = text + f"\nEncounter round: {encounter['round']}"
+    
+    members = encounter["members"]
+    turn = encounter["turn"]
+    
+    if len(members) == 0:
+        text = text + "\nNo creatures or PCs in encounter"
+    else:
+        for x in range(0, len(encounter["members"])):
+            member = members[x - 1]
+            if x == turn:
+                text = text + f"\n**{x}: {member['name']}**"
+            else:
+                text = text + f"\n{x}: {member['name']}"
+
+    await encounter["channel"].send(text)
+
+    #embed = discord.Embed(description="This text should be red", color=discord.Color.red())
+    #await encounter["channel"].send(embed=embed)
 
 
 @bot.command(name ='a')
@@ -102,15 +140,16 @@ async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
         else:
             adjName = name
 
-        encounter.members.append({
+        encounter["members"].append({
             "init": init,
             "name": adjName,
             "hp": hp,
             "ac": ac
         })
+
+    encounter.members.sort(reverse=True, key=lambda e: e["initiative"])
             
     await ctx.message.author.send(f'Add complete {encounter}')
     await ctx.send(f'Add complete {encounter}')
-
 
 bot.run(TOKEN)
