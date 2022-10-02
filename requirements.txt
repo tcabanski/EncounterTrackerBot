@@ -2,3 +2,4 @@ discord.py
 python-dotenv
 pyperclip
 win10toast
+d20
