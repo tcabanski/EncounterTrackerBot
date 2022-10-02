@@ -115,7 +115,7 @@ async def display(ctx, args):
     if encounter["round"] < 0:
        text = text + f"\nEncounter round: NONE" 
     else:
-        text = text + f"\nEncounter round: {encounter['round']}"
+        text = text + f"\nEncounter round: {encounter['round'] + 1}"
     
     members = encounter["members"]
     turn = encounter["turn"]
@@ -136,9 +136,9 @@ async def addMemberToDisplayText(ctx, index):
     text = ""
 
     if index == turn:
-        text = text + f"\n**{index + 1}: {member['name']}**"
+        text = text + f"\n**{member['initiative']}: {member['name']}({index + 1})**"
     else:
-        text = text + f"\n{index + 1}: {member['name']}"
+        text = text + f"\n{member['initiative']}: {member['name']}({index + 1})"
 
     return text
 
@@ -164,7 +164,7 @@ async def nextTurn(ctx, args):
         round = round + 1
 
     turn = turn + 1
-    if turn > len(members):
+    if turn >= len(members):
         turn = 0
         round = round + 1
 
@@ -196,7 +196,7 @@ async def prevTurn(ctx, args):
 
     turn = turn - 1
     if turn < 0:
-        turn = 0
+        turn = len(members) - 1
         round = round - 1
 
     encounter["round"] = round
