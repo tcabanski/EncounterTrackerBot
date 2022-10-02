@@ -2,6 +2,7 @@
 from email import message
 import os
 import random
+from bs4 import MarkupResemblesLocatorWarning
 import discord
 from dotenv import load_dotenv
 import pyperclip
@@ -17,10 +18,9 @@ intents.message_content = True
 
 bot = commands.Bot(intents=intents, command_prefix='@')
 
-encounter = {
-    'round': 0, 
-    'members': []
-}
+members = []
+round = 0
+currentTurn = None
 
 @bot.event
 async def on_ready():
@@ -28,26 +28,31 @@ async def on_ready():
 
 @bot.command(name='start')
 async def xx(ctx):
-    encounter = {
-        'round': 0, 
-        'members': []
-    }
-    await ctx.message.author.send(f'Hello from bot {encounter}')
-    await ctx.send(f'Hello from bot {encounter}')
+    members = []
+    round = 0
+    currentTurn = None
+    await ctx.send(f'Combat ready')
 
 @bot.command(name ='add')
-async def add(ctx, name: str, hp: int, ac: int, init: str):
+async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
     if init == None:
         init = '+0'
 
-    encounter['members'].append({
-        "init": init,
-        "name": name,
-        "hp": hp,
-        "ac": ac
-    })
-    await ctx.message.author.send(f'Add complete {encounter}')
-    await ctx.send(f'Add complete {encounter}')
+    for x in range(1, qty + 1):
+        if qty > 1:
+            adjName = f'{name}{x}'
+        else:
+            adjName = name
+
+        members.append({
+            "init": init,
+            "name": adjName,
+            "hp": hp,
+            "ac": ac
+        })
+            
+    await ctx.message.author.send(f'Add complete {members}')
+    await ctx.send(f'Add complete {members}')
 
 
 bot.run(TOKEN)
