@@ -21,21 +21,24 @@ intents.message_content = True
 
 bot = commands.Bot(intents=intents, command_prefix='@')
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser("@e", add_help=False)
 subparsers = parser.add_subparsers(dest="command", help="Commands")
 
-parser_start = subparsers.add_parser("start", aliases=["s"], help="Start an encounter")
+parser_start = subparsers.add_parser("start", aliases=["s"], help="Start an encounter", add_help=False)
 parser_start.add_argument("channelName", type=str, help="Channel name to display encounter to players")
 
-parser_join = subparsers.add_parser("join", aliases=["j"], help="Join a PC to an encounter")
+parser_join = subparsers.add_parser("join", aliases=["j"], help="Join a PC to an encounter", add_help=False)
 parser_join.add_argument("name", type=str, help="Name")
 parser_join.add_argument("initiative", type=int, help="Initiative")
+parser_join.add_argument("-hp", type=int, help="current hps", default=-1)
+parser_join.add_argument("-maxhp", "-max", "-m", type=int, help="maximum hps", default=-1)
+parser_join.add_argument("-temphp", "-temp", "-tmp", "-t", type=int, help="temporary hps", default=-1)
 
-parser_display = subparsers.add_parser("display", aliases=["d"], help="Display an encounter")
+parser_display = subparsers.add_parser("display", aliases=["d"], help="Display an encounter", add_help=False)
 
-parser_display = subparsers.add_parser("next", aliases=["n"], help="Next turn")
+parser_next = subparsers.add_parser("next", aliases=["n"], help="Next turn", add_help=False)
 
-parser_display = subparsers.add_parser("prev", aliases=["p"], help="Previous turn")
+parser_prev = subparsers.add_parser("prev", aliases=["p"], help="Previous turn", add_help=False)
 
 encounter = {
     "members": [],
@@ -62,7 +65,23 @@ async def dispatchCommand(ctx, *a):
     try:
         args = parser.parse_args(a)
     except:
-        await ctx.send(parser_start.format_help())
+        if len(a) > 0:
+            match a[0]:
+                case "start" | "s":
+                    await ctx.send(parser_start.format_help())
+                case "join" | "j":
+                    await ctx.send(parser_join.format_help())
+                case "display" | "d":
+                    await ctx.send(parser_display.format_help())
+                case "next" | "n":
+                    await ctx.send(parser_next.format_help())
+                case "prev" | "p":
+                    await ctx.send(parser_prev.format_help())
+                case _:
+                    await ctx.send("invalid command")
+        else:
+            await ctx.send("invalid command")
+        
         return
 
     match args.command:
@@ -95,7 +114,10 @@ async def join(ctx, args):
 
     encounter["members"].append({
         "name": args.name,
-        "initiative": args.initiative
+        "initiative": args.initiative,
+        "hp": args.hp,
+        "maxHp": args.maxHp,
+        "tempHp": args.tempHp
     })
 
     encounter["members"].sort(reverse=True, key=lambda e: e["initiative"])
@@ -111,7 +133,7 @@ async def display(ctx, args):
         await ctx.send('Only the DM can use this command')
         return
 
-    text = "========================="
+    text = "```prolog\n========================="
     if encounter["round"] < 0:
        text = text + f"\nEncounter round: NONE" 
     else:
@@ -125,6 +147,8 @@ async def display(ctx, args):
         for x in range(0, len(members)):
             text = text + await addMemberToDisplayText(ctx, x)
 
+    text = text + "\n```"
+
     await encounter["channel"].send(text)
 
 async def addMemberToDisplayText(ctx, index):
@@ -135,11 +159,40 @@ async def addMemberToDisplayText(ctx, index):
     text = ""
 
     if index == turn:
-        text = text + f"\n**{member['initiative']}: {member['name']}({index + 1})**"
+        text = text + f"\n**{member['initiative']}: {member['name']}({index + 1}) {getHealthIndicator(index)}**"
     else:
-        text = text + f"\n{member['initiative']}: {member['name']}({index + 1})"
+        text = text + f"\n{member['initiative']}: {member['name']}({index + 1}) {getHealthIndicator(index)}"
 
     return text
+
+def getHealthIndicator(index):
+    if index >= len(encounter["members"]):
+        return ""
+
+    member = encounter["members"][index]
+
+    if member["hp"] < 0:
+        return ""
+
+    hp = member["hp"]
+
+    if member["tempHp"] >= 0:
+        hp = hp + member["tempHp"]
+
+    if member["maxHp"] < 0:
+        if hp > 0:
+            return "<'Alive'>"
+        
+        return "<dead>"
+    
+    maxHp = member["maxHp"]
+
+    if hp > (maxHp / 2):
+        return "<'Healty'>"
+    elif hp > 0:
+        return "<Wounded>"
+    
+    return "<dead>"
 
 
 async def nextTurn(ctx, args):
