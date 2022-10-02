@@ -18,23 +18,38 @@ intents.message_content = True
 
 bot = commands.Bot(intents=intents, command_prefix='@')
 
-members = []
-round = 0
-currentTurn = None
+encounter = {
+    "members": [],
+    "round": 0,
+    "currentTurn": None,
+    "running": False,
+    "channel": None
+}
+
+
+def initialize(c):
+    encounter["members"] = []
+    encounter["round"] = 0
+    encounter["currentTurn"] = None
+    encounter["running"] = True
+    encounter["channel"] = c 
 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
 
 @bot.command(name='start')
-async def xx(ctx):
-    members = []
-    round = 0
-    currentTurn = None
+async def start(ctx):
+    if encounter["running"]:
+        await ctx.message.author.send('Combat alreay running.  Use "end" to stop.')
+        return
+
+    initialize(ctx.message.channel)
     await ctx.send(f'Combat ready')
 
 @bot.command(name ='add')
 async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
+    round = round + 1
     if init == None:
         init = '+0'
 
@@ -44,15 +59,15 @@ async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
         else:
             adjName = name
 
-        members.append({
+        encounter.members.append({
             "init": init,
             "name": adjName,
             "hp": hp,
             "ac": ac
         })
             
-    await ctx.message.author.send(f'Add complete {members}')
-    await ctx.send(f'Add complete {members}')
+    await ctx.message.author.send(f'Add complete {encounter}')
+    await ctx.send(f'Add complete {encounter}')
 
 
 bot.run(TOKEN)
