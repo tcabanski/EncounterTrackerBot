@@ -118,7 +118,6 @@ async def display(ctx, args):
         text = text + f"\nEncounter round: {encounter['round'] + 1}"
     
     members = encounter["members"]
-    turn = encounter["turn"]
     
     if len(members) == 0:
         text = text + "\nNo creatures in encounter"
