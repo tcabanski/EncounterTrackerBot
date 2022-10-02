@@ -27,25 +27,26 @@ encounter = {
 }
 
 
-def initialize(c):
+def initialize(channelName):
     encounter["members"] = []
     encounter["round"] = 0
     encounter["currentTurn"] = None
     encounter["running"] = True
-    encounter["channel"] = c 
+    encounter["channel"] =  discord.utils.get(bot.get_all_channels(), name  = channelName)
 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
 
 @bot.command(name='start')
-async def start(ctx):
+async def start(ctx, channelName: str):
     if encounter["running"]:
-        await ctx.message.author.send('Combat alreay running.  Use "end" to stop.')
+        await ctx.send('Combat alreay running.  Use "end" to stop.')
         return
 
-    initialize(ctx.message.channel)
+    initialize(channelName)
     await ctx.send(f'Combat ready')
+    await encounter["channel"].send("channel message")
 
 @bot.command(name ='add')
 async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
