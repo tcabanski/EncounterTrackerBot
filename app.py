@@ -27,12 +27,15 @@ subparsers = parser.add_subparsers(dest="command", help="Commands")
 parser_start = subparsers.add_parser("start", aliases=["s"], help="Start an encounter", add_help=False)
 parser_start.add_argument("channelName", type=str, help="Channel name to display encounter to players")
 
+parser_end = subparsers.add_parser("end", aliases=["e"], help="End an encounter", add_help=False)
+
 parser_join = subparsers.add_parser("join", aliases=["j"], help="Join a PC to an encounter", add_help=False)
 parser_join.add_argument("name", type=str, help="Name")
 parser_join.add_argument("initiative", type=int, help="Initiative")
 parser_join.add_argument("-hp", type=int, help="current hps", default=-1)
 parser_join.add_argument("-maxhp", "-max", "-m", type=int, help="maximum hps", default=-1)
 parser_join.add_argument("-temphp", "-temp", "-tmp", "-t", type=int, help="temporary hps", default=-1)
+parser_join.add_argument("-roll", "-r", help="true to roll initiative (initiative becomes modifier)", action="store_true")
 
 parser_display = subparsers.add_parser("display", aliases=["d"], help="Display an encounter", add_help=False)
 
@@ -69,6 +72,8 @@ async def dispatchCommand(ctx, *a):
             match a[0]:
                 case "start" | "s":
                     await ctx.send(parser_start.format_help())
+                case "end" | "e":
+                    await ctx.send(parser_end.format_help())
                 case "join" | "j":
                     await ctx.send(parser_join.format_help())
                 case "display" | "d":
@@ -87,6 +92,8 @@ async def dispatchCommand(ctx, *a):
     match args.command:
         case "start" | "s":
             await start(ctx, args)
+        case "end" | "e":
+            await end(ctx, args)
         case "join" | "j":
             await join(ctx, args)
         case "display" | "d":
@@ -107,6 +114,19 @@ async def start(ctx, args):
     await ctx.send(f'Combat ready')
     await encounter["channel"].send(f"Please join using command:\n `@e j [name] [initative]`")
 
+async def end(ctx, args):
+    if encounter["running"] == False:
+        await ctx.send('Combat is not running.  Use "start" to start.')
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await ctx.send('Only the DM can use this command')
+        return
+
+    encounter["running"] = False
+    await ctx.send(f'Encounter ended')
+    await encounter["channel"].send(f"Encounter has ended")
+
 async def join(ctx, args):
     if encounter["running"] == False:
         await ctx.send('Combat is not running.  Please wait for the DM')
@@ -116,13 +136,26 @@ async def join(ctx, args):
         "name": args.name,
         "initiative": args.initiative,
         "hp": args.hp,
-        "maxHp": args.maxHp,
-        "tempHp": args.tempHp
+        "maxHp": args.maxhp,
+        "tempHp": args.temphp
     })
+
+    message = f"{args.name} added to encounter with initative {args.initiative}"
+    if args.roll:
+        rollspec = "1d20"
+        if args.initiative > 0:
+            rollspec = rollspec + f"+{args.initiative}"
+        else:
+            rollspec = rollspec + f"{args.initiative}"
+
+        roll = d20.roll(rollspec)
+        args.initiative = roll.total
+        message = f"{args.name} added to encounter and rolled initative {roll}"
 
     encounter["members"].sort(reverse=True, key=lambda e: e["initiative"])
 
-    await ctx.send(f"{args.name} added to encounter with initative {args.initiative}")
+    await ctx.send(message)
+    await encounter["channel"].send(message)
 
 async def display(ctx, args):
     if encounter["running"] == False:
@@ -275,30 +308,5 @@ async def displayTurn(ctx):
     text = text + await addMemberToDisplayText(ctx, nextTurn)
 
     await encounter["channel"].send(text)
-
-
-@bot.command(name ='a')
-async def add(ctx, qty: int, name: str, hp: int, ac: int, init: str):
-    round = round + 1
-    if init == None:
-        init = '+0'
-
-    for x in range(1, qty + 1):
-        if qty > 1:
-            adjName = f'{name}{x}'
-        else:
-            adjName = name
-
-        encounter["members"].append({
-            "init": init,
-            "name": adjName,
-            "hp": hp,
-            "ac": ac
-        })
-
-    encounter.members.sort(reverse=True, key=lambda e: e["initiative"])
-            
-    await ctx.message.author.send(f'Add complete {encounter}')
-    await ctx.send(f'Add complete {encounter}')
 
 bot.run(TOKEN)
