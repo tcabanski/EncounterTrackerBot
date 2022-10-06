@@ -105,40 +105,32 @@ async def dispatchCommand(ctx, *a):
         case _:
             await ctx.send(parser.format_help())
 
+# commands
+
 async def start(ctx, args):
     if encounter["running"]:
-        await ctx.send('Combat alreay running.  Use "end" to stop.')
+        await send_message(ctx, "Encounter already running. Use '@e start <player channel>'", sender_only=True)
         return
 
     initialize(ctx, args.channelName)
-    await ctx.send(f'Combat ready')
-    await encounter["channel"].send(f"Please join using command:\n `@e j [name] [initative]`")
+    await send_message(ctx, "Encounter ready. Players use '@e j <name> <initiative>' OR '@e j <name> <initiative modifier> -r' to join")
 
 async def end(ctx, args):
     if encounter["running"] == False:
-        await ctx.send('Combat is not running.  Use "start" to start.')
+        await send_message(ctx, "Encounter is not running. Wait for the DM.", sender_only=True)
         return
 
     if ctx.author.id != encounter["owner"].id:
-        await ctx.send('Only the DM can use this command')
+        await send_message(ctx, "Only the DM can use this command", sender_only=True)
         return
 
+    await send_message(ctx, "Encounter has ended")
     encounter["running"] = False
-    await ctx.send(f'Encounter ended')
-    await encounter["channel"].send(f"Encounter has ended")
 
 async def join(ctx, args):
     if encounter["running"] == False:
-        await ctx.send('Combat is not running.  Please wait for the DM')
+        await send_message(ctx, "Encounter is not running. Wait for the DM.", sender_only=True)
         return
-
-    encounter["members"].append({
-        "name": args.name,
-        "initiative": args.initiative,
-        "hp": args.hp,
-        "maxHp": args.maxhp,
-        "tempHp": args.temphp
-    })
 
     message = f"{args.name} added to encounter with initative {args.initiative}"
     if args.roll:
@@ -152,18 +144,98 @@ async def join(ctx, args):
         args.initiative = roll.total
         message = f"{args.name} added to encounter and rolled initative {roll}"
 
+    encounter["members"].append({
+        "name": args.name,
+        "initiative": args.initiative,
+        "hp": args.hp,
+        "maxHp": args.maxhp,
+        "tempHp": args.temphp
+    })
+
     encounter["members"].sort(reverse=True, key=lambda e: e["initiative"])
 
-    await ctx.send(message)
-    await encounter["channel"].send(message)
+    await send_message(ctx, message)
 
-async def display(ctx, args):
+async def nextTurn(ctx, args):
     if encounter["running"] == False:
-        await ctx.send('Combat is not running.  Please wait for the DM')
+        await send_message(ctx, "Encounter is not running.  Please wait for the DM", sender_only=True)
         return
 
     if ctx.author.id != encounter["owner"].id:
-        await ctx.send('Only the DM can use this command')
+        await send_message(ctx, "Only the DM can use this command", sender_only=True)
+        return
+
+    turn = encounter["turn"] 
+    round = encounter["round"]
+    members = encounter["members"]
+
+    if len(members) < 1:
+        await send_message(ctx, "No creatures in encounter.  Use join for PCs or add for monsters.", sender_only=True)
+        return
+
+    if round < 0:
+        round = round + 1
+
+    turn = turn + 1
+    if turn >= len(members):
+        turn = 0
+        round = round + 1
+
+    encounter["round"] = round
+    encounter["turn"] = turn
+
+    await displayTurn(ctx)
+
+async def prevTurn(ctx, args):
+    if encounter["running"] == False:
+        await send_message(ctx, "Encounter is not running.  Please wait for the DM", sender_only=True)
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await send_message(ctx, "Only the DM can use this command", sender_only=True)
+        return
+
+    turn = encounter["turn"] 
+    round = encounter["round"]
+    members = encounter["members"]
+
+    if len(members) < 1:
+        await send_message(ctx, "No creatures in encounter.  Use join for PCs or add for monsters.", sender_only=True)
+        return
+
+    if turn == 0 and round == 0:
+        await send_message(ctx, "Already on first turn of the encounter. There is no previous turn.", sender_only=True)
+        return
+
+    turn = turn - 1
+    if turn < 0:
+        turn = len(members) - 1
+        round = round - 1
+
+    encounter["round"] = round
+    encounter["turn"] = turn
+
+    await displayTurn(ctx)
+
+# Helper functions
+
+async def send_message(ctx, message: str, sender_only=False):
+    if sender_only:
+        await ctx.send(message)
+        return
+
+    if encounter["running"] and ctx.channel != encounter["channel"]:
+        await encounter["channel"].send(message)
+
+    await ctx.send(message)
+
+async def display(ctx, args):
+    if encounter["running"] == False:
+        await send_message(ctx, "Encounter is not running.  Please wait for the DM", sender_only=True)
+        return
+
+    if ctx.author.id != encounter["owner"].id:
+        await send_message(ctx, "Only the DM can use this command", sender_only=True)
         return
 
     text = "```prolog\n========================="
@@ -181,8 +253,7 @@ async def display(ctx, args):
             text = text + await addMemberToDisplayText(ctx, x)
 
     text = text + "\n```"
-
-    await encounter["channel"].send(text)
+    await send_message(ctx, text)
 
 async def addMemberToDisplayText(ctx, index):
     members = encounter["members"]
@@ -227,68 +298,6 @@ def getHealthIndicator(index):
     
     return "<dead>"
 
-
-async def nextTurn(ctx, args):
-    if encounter["running"] == False:
-        await ctx.send('Combat is not running.  Please wait for the DM')
-        return
-
-    if ctx.author.id != encounter["owner"].id:
-        await ctx.send('Only the DM can use this command')
-        return
-
-    turn = encounter["turn"] 
-    round = encounter["round"]
-    members = encounter["members"]
-
-    if len(members) < 1:
-        await ctx.send('No creatures in encounter.  Use join for PCs or add for monsters.')
-        return
-
-    if round < 0:
-        round = round + 1
-
-    turn = turn + 1
-    if turn >= len(members):
-        turn = 0
-        round = round + 1
-
-    encounter["round"] = round
-    encounter["turn"] = turn
-
-    await displayTurn(ctx)
-
-async def prevTurn(ctx, args):
-    if encounter["running"] == False:
-        await ctx.send('Combat is not running.  Please wait for the DM')
-        return
-
-    if ctx.author.id != encounter["owner"].id:
-        await ctx.send('Only the DM can use this command')
-        return
-
-    turn = encounter["turn"] 
-    round = encounter["round"]
-    members = encounter["members"]
-
-    if len(members) < 1:
-        await ctx.send('No creatures in encounter.  Use join for PCs or add for monsters.')
-        return
-
-    if turn == 0 and round == 0:
-        await ctx.send('Already on first turn of the encounter. There is no previous turn.')
-        return
-
-    turn = turn - 1
-    if turn < 0:
-        turn = len(members) - 1
-        round = round - 1
-
-    encounter["round"] = round
-    encounter["turn"] = turn
-
-    await displayTurn(ctx)
-
 async def displayTurn(ctx):
     text = "========================="
     text = text + f"\nEncounter round: {encounter['round'] + 1}"
@@ -307,6 +316,6 @@ async def displayTurn(ctx):
     text = text + await addMemberToDisplayText(ctx, turn)
     text = text + await addMemberToDisplayText(ctx, nextTurn)
 
-    await encounter["channel"].send(text)
+    await send_message(ctx, text)
 
 bot.run(TOKEN)
